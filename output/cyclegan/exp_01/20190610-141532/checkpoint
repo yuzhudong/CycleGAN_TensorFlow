@@ -1,0 +1,6 @@
+model_checkpoint_path: "cyclegan-499"
+all_model_checkpoint_paths: "cyclegan-495"
+all_model_checkpoint_paths: "cyclegan-496"
+all_model_checkpoint_paths: "cyclegan-497"
+all_model_checkpoint_paths: "cyclegan-498"
+all_model_checkpoint_paths: "cyclegan-499"

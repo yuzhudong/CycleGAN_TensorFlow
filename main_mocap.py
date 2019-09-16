@@ -8,6 +8,7 @@ from scipy.misc import imsave
 
 import click
 import tensorflow as tf
+from typing import Any
 
 from . import cyclegan_datasets_mocap as cyclegan_datasets
 from . import data_loader_mocap as data_loader, losses, model_mocap as model
@@ -30,7 +31,7 @@ class CycleGAN:
         self._lambda_b = lambda_b
         self._output_dir = os.path.join(output_root_dir, current_time)
         self._images_dir = os.path.join(self._output_dir, 'imgs')
-        self._num_imgs_to_save = 20
+        self._num_imgs_to_save = 5
         self._to_restore = to_restore
         self._base_lr = base_lr
         self._max_step = max_step
@@ -222,7 +223,7 @@ class CycleGAN:
         if not os.path.exists(self._images_dir):
             os.makedirs(self._images_dir)
 
-        names = ['inputA_', 'inputB_']
+
 
         with open(os.path.join(
                 self._output_dir, 'epoch_' + str(epoch) + '.html'
@@ -232,18 +233,83 @@ class CycleGAN:
 
                 inputs = sess.run(self.inputs)
 
-                print("after sess.run.input")
-                tensors = [inputs['images_i'], inputs['images_j']]
+
+                images_i_mean =   inputs['images_i_mean']  # type: rrr
+                images_j_mean =  inputs['images_j_mean']
+                images_i_sd    =     inputs['images_i_sd']
+                images_j_sd  =  inputs['images_j_sd']
                 images_i = inputs['images_i']
                 images_j = inputs['images_j']
 
-                csv_name = "test"+ str(epoch) + "_" + str(i) + ".csv"
-                np.savetxt(csv_name, images_i[0,:,:,0], delimiter=",")
+                images_j_name = inputs['images_j_name']
+                images_i_name = inputs['images_i_name']
 
-                print("after tensors")
+                images_i_name = str(images_i_name)
+                images_i_name = images_i_name.rsplit('/', 1)[-1]
+                images_i_name = images_i_name.rsplit('.', 1)[0]
+
+
+                fake_i_name = images_i_name + "_fake" + "_epoch" + str(epoch) + ".csv"
+                cycle_i_name = images_i_name + "_cycle" + "_epoch" + str(epoch) + ".csv"
+                images_i_name = images_i_name + "_input" + "_epoch" + str(epoch) + ".csv"
+
+
+
+                images_j_name = str(images_j_name)
+                images_j_name = images_j_name.rsplit('/', 1)[-1]
+                images_j_name = images_j_name.rsplit('.', 1)[0]
+
+                fake_j_name = images_j_name + "_fake" + "_epoch" + str(epoch) + ".csv"
+                cycle_j_name = images_j_name + "_cycle" + "_epoch" + str(epoch) + ".csv"
+                images_j_name = images_j_name + "_input" + "_epoch" + str(epoch) + ".csv"
+
+
+                names = [images_i_name, images_j_name, fake_i_name,
+                         fake_j_name, cycle_i_name, cycle_j_name]
+
+
+                fake_i_temp, fake_j_temp, cyc_i_temp, cyc_j_temp = sess.run([
+                    self.fake_images_a,
+                    self.fake_images_b,
+                    self.cycle_images_a,
+                    self.cycle_images_b
+                ], feed_dict={
+                    self.input_a: inputs['images_i'],
+                    self.input_b: inputs['images_j']
+                })
+
+                images_i = np.multiply(images_i ,np.sqrt(images_i_sd)) + images_i_mean
+                images_j = np.multiply(images_j , np.sqrt(images_j_sd)) + images_j_mean
+
+                fake_i =np.multiply(  fake_i_temp ,np.sqrt(images_i_sd))+ images_i_mean
+                fake_j = np.multiply(fake_j_temp,np.sqrt(images_j_sd ))+ images_j_mean
+
+                cyc_i= np.multiply(cyc_i_temp , np.sqrt(images_i_sd)) + images_i_mean
+                cyc_j = np.multiply(cyc_j_temp , np.sqrt(images_j_sd))+ images_j_mean
+
+                #images_i = images_i + images_i_mean
+                #images_j = images_j + images_j_mean
+                
+                #fake_i = fake_i_temp + images_i_mean
+                #fake_j = fake_j_temp + images_j_mean
+                
+                #cyc_i = cyc_i_temp + images_i_mean
+                #cyc_j = cyc_j_temp+ images_j_mean
+
+
+
+                tensors = [images_i, images_j, fake_i, fake_j, cyc_i, cyc_j]
+
+
+
+                # csv_name = "test"+ str(epoch) + "_" + str(i) + ".csv"
+                # np.savetxt(csv_name, images_i[0,:,:,0], delimiter=",")
                 for name, tensor in zip(names, tensors):
-                    image_name = name + str(epoch) + "_" + str(i) + ".csv"
+                    #image_name =str(name) + str(epoch) + "_" + str(i) + ".csv"
 
+
+                    #print (name)
+                    np.savetxt(os.path.join(self._images_dir, name), tensor[0, :, :, 0], delimiter=",")
 
                 #     imsave(os.path.join(self._images_dir, image_name),
                 #            tensor[0].astype(np.float32)
@@ -274,8 +340,7 @@ class CycleGAN:
         ), 'w') as v_html:
             for i in range(0, self._num_imgs_to_save):
                 print("Saving image {}/{}".format(i, self._num_imgs_to_save))
-                sess.run(self.inputs)
-                print('sess.input')
+
                 inputs = sess.run(self.inputs)
 
                 fake_A_temp, fake_B_temp, cyc_A_temp, cyc_B_temp = sess.run([
@@ -372,12 +437,15 @@ class CycleGAN:
 
 
             # Training Loop
-            for epoch in range(sess.run(self.global_step), self._max_step):
-            #for epoch in range(0,3):
+
+            #for epoch in range(sess.run(self.global_step), self._max_step):
+            for epoch in range(0,500):
                 print("In the epoch ", epoch)
+                saver.save(sess, os.path.join(
+                    self._output_dir, "cyclegan"), global_step=epoch)
 
                 # Dealing with the learning rate as per the epoch number
-                if epoch < 100:
+                if epoch < 200:
                     curr_lr = self._base_lr
                 else:
                     curr_lr = self._base_lr - \
@@ -389,6 +457,8 @@ class CycleGAN:
                     print("Processing batch {}/{}".format(i, max_images))
 
                     inputs = sess.run(self.inputs)
+
+
                     # inputs['images_i'] = np.expand_dims(tf.expand_dims(inputs['images_i'],0),3)
                     # inputs['images_j'] = np.expand_dims(tf.expand_dims(inputs['images_j'], 0), 3)
 
@@ -605,30 +675,6 @@ class CycleGAN:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     def test(self):
         """Test Function."""
         print("Testing the results")
@@ -704,7 +750,7 @@ def main(to_train, log_dir, config_filename, checkpoint_dir, skip):
 
     to_restore = (to_train == 2)
     base_lr = float(config['base_lr']) if 'base_lr' in config else 0.0002
-    max_step = int(config['max_step']) if 'max_step' in config else 200
+    max_step = int(config['max_step']) if 'max_step' in config else 400
     network_version = str(config['network_version'])
     dataset_name = str(config['dataset_name'])
     do_flipping = bool(config['do_flipping'])

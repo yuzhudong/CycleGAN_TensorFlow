@@ -3,15 +3,16 @@
 import tensorflow as tf
 
 from . import layers
+import math
 
 # The number of samples per batch.
 BATCH_SIZE = 1
 
-# The number of joints
-IMG_HEIGHT = 103
+# The number of joints 79
+IMG_HEIGHT = 79
 
-# The window size for motion clips
-IMG_WIDTH = 16
+# The window size for motion clips 30
+IMG_WIDTH = 30
 
 # The number of color channels per image.
 IMG_CHANNELS = 1
@@ -86,10 +87,10 @@ def build_resnet_block(inputres, dim, name="resnet", padding="REFLECT"):
     """
     with tf.variable_scope(name):
         out_res = tf.pad(inputres, [[0, 0], [1, 1], [
-            1, 1],[0, 0]], padding)
+            0, 0],[0, 0]], padding)
         out_res = layers.general_conv2d(
             out_res, dim, 3, 3, 1, 1, 0.02, "VALID", "c1")
-        out_res = tf.pad(out_res, [[0, 0], [1, 1], [1, 1],[0, 0]], padding)
+        out_res = tf.pad(out_res, [[0, 0], [1, 1], [0, 0],[0, 0]], padding)
         out_res = layers.general_conv2d(
             out_res, dim, 3, 3, 1, 1, 0.02, "VALID", "c2", do_relu=False)
 
@@ -100,7 +101,7 @@ def build_generator_resnet_9blocks_tf(inputgen, name="generator", skip=False):
     with tf.variable_scope(name):
         f = 7
         ks = 3
-        padding = "REFLECT"
+        padding = "CONSTANT"
 
         pad_input = tf.pad(inputgen, [[0, 0], [ks, ks], [
             ks, ks],[0, 0]], padding)
@@ -122,10 +123,10 @@ def build_generator_resnet_9blocks_tf(inputgen, name="generator", skip=False):
         o_r9 = build_resnet_block(o_r8, ngf * 4, "r9", padding)
 
         o_c4 = layers.general_deconv2d(
-            o_r9, [BATCH_SIZE, 50, 8, ngf * 2], ngf * 2, ks, ks, 1, 1, 0.02,
+            o_r9, [BATCH_SIZE, math.floor(IMG_HEIGHT/2), math.floor(IMG_WIDTH/2), ngf * 2], ngf * 2, ks, ks, 1, 1, 0.02,
             "SAME", "c4")
         o_c5 = layers.general_deconv2d(
-            o_c4, [BATCH_SIZE, 103, 16, ngf], ngf, ks, ks, 1, 1, 0.02,
+            o_c4, [BATCH_SIZE,79 , IMG_WIDTH, ngf], ngf, ks, ks, 1, 1, 0.02,
             "SAME", "c5")
         o_c6 = layers.general_conv2d(o_c5, IMG_CHANNELS, f, f, 1, 1,
                                      0.02, "SAME", "c6",
@@ -138,7 +139,6 @@ def build_generator_resnet_9blocks_tf(inputgen, name="generator", skip=False):
 
         return out_gen
 
-
 def build_generator_resnet_9blocks(inputgen, name="generator", skip=False):
     with tf.variable_scope(name):
         f = 7
@@ -146,7 +146,128 @@ def build_generator_resnet_9blocks(inputgen, name="generator", skip=False):
         padding = "CONSTANT"
 
         pad_input = tf.pad(inputgen, [[0, 0], [ks, ks], [
+            0, 0],[0, 0]], padding)
+        o_c1 = layers.general_conv2d(
+            pad_input, ngf, f, f, 1, 1, 0.02, name="c1")
+        o_c2 = layers.general_conv2d(
+            o_c1, ngf * 2, ks, ks, 1, 1, 0.02, "SAME", "c2")
+        o_c3 = layers.general_conv2d(
+            o_c2, ngf * 4, ks, ks, 1, 1, 0.02, "SAME", "c3")
+
+        o_r1 = build_resnet_block(o_c3, ngf * 4, "r1", padding)
+        o_r2 = build_resnet_block(o_r1, ngf * 4, "r2", padding)
+        o_r3 = build_resnet_block(o_r2, ngf * 4, "r3", padding)
+        o_r4 = build_resnet_block(o_r3, ngf * 4, "r4", padding)
+        o_r5 = build_resnet_block(o_r4, ngf * 4, "r5", padding)
+        o_r6 = build_resnet_block(o_r5, ngf * 4, "r6", padding)
+        o_r7 = build_resnet_block(o_r6, ngf * 4, "r7", padding)
+        o_r8 = build_resnet_block(o_r7, ngf * 4, "r8", padding)
+        o_r9 = build_resnet_block(o_r8, ngf * 4, "r9", padding)
+
+        o_c4 = layers.general_deconv2d(
+            o_r9, [BATCH_SIZE,  IMG_HEIGHT, IMG_WIDTH , ngf * 2], ngf * 2, ks, ks, 1, 1, 0.02,
+            "SAME", "c4")
+        o_c5 = layers.general_deconv2d(
+            o_c4, [BATCH_SIZE, IMG_HEIGHT,  IMG_WIDTH, ngf], ngf, ks, ks, 1, 1, 0.02,
+            "SAME", "c5")
+        print(o_c5)
+        o_c6 = layers.general_conv2d(o_c5, IMG_CHANNELS, f, f, 1, 1,
+                                     0.02, "SAME", "c6",
+                                     do_norm=False, do_relu=False)
+        #print(o_c6)
+        if skip is True:
+            out_gen = tf.nn.tanh(inputgen + o_c6, "t1")
+        else:
+            out_gen = tf.nn.tanh(o_c6, "t1")
+
+        return out_gen
+
+
+    
+    
+def build_generator_resnet_3blocks_tf(inputgen, name="generator", skip=False):
+    with tf.variable_scope(name):
+        f = 7
+        ks = 3
+        padding = "CONSTANT"
+
+        pad_input = tf.pad(inputgen, [[0, 0], [ks, ks], [
             ks, ks],[0, 0]], padding)
+        o_c1 = layers.general_conv2d(
+            pad_input, ngf, f, f, 1, 1, 0.02, name="c1")
+        o_c2 = layers.general_conv2d(
+            o_c1, ngf * 2, ks, ks, 2, 2, 0.02, "SAME", "c2")
+        o_c3 = layers.general_conv2d(
+            o_c2, ngf * 4, ks, ks, 1, 1, 0.02, "SAME", "c3")
+
+        o_r1 = build_resnet_block(o_c3, ngf * 4, "r1", padding)
+        o_r2 = build_resnet_block(o_r1, ngf * 4, "r2", padding)
+        o_r3 = build_resnet_block(o_r2, ngf * 4, "r3", padding)
+       
+        o_c4 = layers.general_deconv2d(
+            o_r1, [BATCH_SIZE, math.floor(IMG_HEIGHT/2), math.floor(IMG_WIDTH/2), ngf * 2], ngf * 2, ks, ks, 1, 1, 0.02,
+            "SAME", "c4")
+        o_c5 = layers.general_deconv2d(
+            o_c4, [BATCH_SIZE,79 , IMG_WIDTH, ngf], ngf, ks, ks, 1, 1, 0.02,
+            "SAME", "c5")
+        o_c6 = layers.general_conv2d(o_c5, IMG_CHANNELS, f, f, 1, 1,
+                                     0.02, "SAME", "c6",
+                                     do_norm=False, do_relu=False)
+        if skip is True:
+            out_gen = tf.nn.tanh(inputgen + o_c6, "t1")
+        else:
+            out_gen = tf.nn.tanh(o_c6, "t1")
+
+        return out_gen
+
+def build_generator_resnet_3blocks(inputgen, name="generator", skip=False):
+    with tf.variable_scope(name):
+        f = 7
+        ks = 3
+        padding = "CONSTANT"
+
+        pad_input = tf.pad(inputgen, [[0, 0], [ks, ks], [
+            0, 0],[0, 0]], padding)
+        o_c1 = layers.general_conv2d(
+            pad_input, ngf, f, f, 1, 1, 0.02, name="c1")
+        o_c2 = layers.general_conv2d(
+            o_c1, ngf * 2, ks, ks, 1, 1, 0.02, "SAME", "c2")
+        o_c3 = layers.general_conv2d(
+            o_c2, ngf * 4, ks, ks, 1, 1, 0.02, "SAME", "c3")
+
+        o_r1 = build_resnet_block(o_c3, ngf * 4, "r1", padding)
+        o_r2 = build_resnet_block(o_r1, ngf * 4, "r2", padding)
+        o_r3 = build_resnet_block(o_r2, ngf * 4, "r3", padding)
+       
+
+        o_c4 = layers.general_deconv2d(
+            o_r1, [BATCH_SIZE,  IMG_HEIGHT, IMG_WIDTH , ngf * 2], ngf * 2, ks, ks, 1, 1, 0.02,
+            "SAME", "c4")
+        o_c5 = layers.general_deconv2d(
+            o_c4, [BATCH_SIZE, IMG_HEIGHT,  IMG_WIDTH, ngf], ngf, ks, ks, 1, 1, 0.02,
+            "SAME", "c5")
+        print(o_c5)
+        o_c6 = layers.general_conv2d(o_c5, IMG_CHANNELS, f, f, 1, 1,
+                                     0.02, "SAME", "c6",
+                                     do_norm=False, do_relu=False)
+        #print(o_c6)
+        if skip is True:
+            out_gen = tf.nn.tanh(inputgen + o_c6, "t1")
+        else:
+            out_gen = tf.nn.tanh(o_c6, "t1")
+
+        return out_gen
+
+    
+    
+def build_generator_resnet_9blocks_mocap_mocap(inputgen, name="generator", skip=False):
+    with tf.variable_scope(name):
+        f = 7
+        ks = 3
+        padding = "CONSTANT"
+
+        pad_input = tf.pad(inputgen, [[0, 0], [ks, ks], [
+            0, 0],[0, 0]], padding)
         o_c1 = layers.general_conv2d(
             pad_input, ngf, f, f, 1, 1, 0.02, name="c1")
         o_c2 = layers.general_conv2d(
@@ -170,6 +291,7 @@ def build_generator_resnet_9blocks(inputgen, name="generator", skip=False):
         o_c5 = layers.general_deconv2d(
             o_c4, [BATCH_SIZE, 103, 16, ngf], ngf, ks, ks, 1, 1, 0.02,
             "SAME", "c5")
+        print(o_c5)
         o_c6 = layers.general_conv2d(o_c5, IMG_CHANNELS, f, f, 1, 1,
                                      0.02, "SAME", "c6",
                                      do_norm=False, do_relu=False)

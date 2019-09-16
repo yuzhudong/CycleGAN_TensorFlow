@@ -42,7 +42,7 @@ def create_list(foldername, fulldir=True, suffix=".csv"):
               help='The path to the images from domain_b.')
 @click.option('--dataset_name',
               type=click.STRING,
-              default='adult2child_train_flatten',
+              default='adult2child_train',
               help='The name of the dataset in cyclegan_dataset.')
 @click.option('--do_shuffle',
               type=click.BOOL,

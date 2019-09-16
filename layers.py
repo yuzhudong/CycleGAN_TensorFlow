@@ -30,13 +30,40 @@ def instance_norm(x):
         return out
 
 
+
+def general_conv1d(inputconv, o_d=64, f_h=7, f_w=7, s_h=1, s_w=1, stddev=0.02,
+                   padding="VALID", name="conv1d", do_norm=True, do_relu=True,
+                   relufactor=0):
+    with tf.variable_scope(name):
+
+        conv = tf.contrib.layers.conv1d(
+            inputconv,  o_d, f_w, s_w, padding,
+            activation_fn=None,
+            weights_initializer=tf.truncated_normal_initializer(
+                stddev=stddev
+            ),
+            biases_initializer=tf.zeros_initializer()
+        )
+        if do_norm:
+            conv = instance_norm(conv)
+
+        if do_relu:
+            if(relufactor == 0):
+                conv = tf.nn.relu(conv, "relu")
+            else:
+                conv = lrelu(conv, relufactor, "lrelu")
+
+        return conv
+
+
+
 def general_conv2d(inputconv, o_d=64, f_h=7, f_w=7, s_h=1, s_w=1, stddev=0.02,
                    padding="VALID", name="conv2d", do_norm=True, do_relu=True,
                    relufactor=0):
     with tf.variable_scope(name):
-
+     #modified to make it 1D convolution
         conv = tf.contrib.layers.conv2d(
-            inputconv, o_d, f_w, s_w, padding,
+            inputconv, o_d, [f_w,1], s_w, padding,
             activation_fn=None,
             weights_initializer=tf.truncated_normal_initializer(
                 stddev=stddev

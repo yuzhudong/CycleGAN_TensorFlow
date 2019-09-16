@@ -8,7 +8,7 @@ import click
 from . import cyclegan_datasets
 
 
-def create_list(foldername, fulldir=True, suffix=".png"):
+def create_list(foldername, fulldir=True, suffix=".csv"):
     """
 
     :param foldername: The full path of the folder.
@@ -34,15 +34,15 @@ def create_list(foldername, fulldir=True, suffix=".png"):
 @click.command()
 @click.option('--image_path_a',
               type=click.STRING,
-              default='./CycleGAN_TensorFlow/input/adult2child/train_adult',
+              default='./CycleGAN_TensorFlow/input/horse2zebra/trainA',
               help='The path to the images from domain_a.')
 @click.option('--image_path_b',
               type=click.STRING,
-              default='./CycleGAN_TensorFlow/input/adult2child/train_child',
+              default='./CycleGAN_TensorFlow/input/horse2zebra/trainB',
               help='The path to the images from domain_b.')
 @click.option('--dataset_name',
               type=click.STRING,
-              default='adult2child_train',
+              default='horse2zebra_train',
               help='The name of the dataset in cyclegan_dataset.')
 @click.option('--do_shuffle',
               type=click.BOOL,

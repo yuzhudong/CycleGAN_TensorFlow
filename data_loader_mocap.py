@@ -4,6 +4,8 @@ from . import cyclegan_datasets_mocap as cyclegan_datasets
 from . import model_mocap as model
 import csv
 import pandas as pd
+import math
+
 
 def _load_samples(csv_name, image_type):
     filename_queue = tf.train.string_input_producer(
@@ -19,7 +21,7 @@ def _load_samples(csv_name, image_type):
         csv_filename, record_defaults=record_defaults)
 
 
-    record_defaults_csv = [tf.constant([], dtype=tf.float32)]*1648
+    record_defaults_csv = [tf.constant([], dtype=tf.float32)]*model.IMG_HEIGHT*model.IMG_WIDTH
     if image_type == '.csv':
 
         # dataset_a = tf.contrib.data.CsvDataset(file_contents_i,record_defaults_csv)
@@ -59,22 +61,34 @@ def _load_samples(csv_name, image_type):
         # image_decoded_a = tf.stack( csv_return )
 
         image_decoded_b = tf.reshape(
-            image_decoded_b,
-            [103, 16],
+        image_decoded_b,
+            [model.IMG_HEIGHT, model.IMG_WIDTH ],
             name=None
         )
         image_decoded_b = tf.transpose (image_decoded_b)
 
         image_decoded_a = tf.reshape(
             image_decoded_a,
-            [103, 16],
+            [model.IMG_HEIGHT, model.IMG_WIDTH ],
             name=None
         )
         image_decoded_a = tf.transpose(image_decoded_a)
 
-        image_decoded_a = tf.expand_dims(tf.expand_dims(image_decoded_a, 0), 3)
-        image_decoded_b = tf.expand_dims(tf.expand_dims(image_decoded_b, 0), 3)
+        image_decoded_a =tf.expand_dims(image_decoded_a, 2)
+        image_decoded_b =tf.expand_dims(image_decoded_b, 2)
 
+
+
+        image_decoded_a_mean,image_decoded_a_sd= tf.nn.moments(image_decoded_a, axes=[1], keep_dims=True)
+        image_decoded_b_mean, image_decoded_b_sd = tf.nn.moments(image_decoded_b, axes=[1], keep_dims=True)
+        #
+        image_decoded_a =tf.div(tf.subtract(image_decoded_a, image_decoded_a_mean),tf.sqrt(image_decoded_a_sd))
+        image_decoded_b= tf.div(tf.subtract(image_decoded_b, image_decoded_b_mean), tf.sqrt(image_decoded_b_sd))
+        #image_decoded_a= tf.subtract(image_decoded_a, image_decoded_a_mean)
+        #image_decoded_b= tf.subtract(image_decoded_b, image_decoded_b_mean)
+
+        image_decoded_a = tf.where(tf.is_nan(image_decoded_a), tf.zeros_like(image_decoded_a), image_decoded_a)
+        image_decoded_b = tf.where(tf.is_nan(image_decoded_b), tf.zeros_like(image_decoded_b), image_decoded_b)
 
 
 
@@ -143,7 +157,8 @@ def _load_samples(csv_name, image_type):
     #     image_decoded_B = tf.image.decode_png(
     #         file_contents_j, channels=model.IMG_CHANNELS, dtype=tf.uint8)
 
-    return image_decoded_a, image_decoded_b
+
+    return image_decoded_a, image_decoded_b , image_decoded_a_mean,image_decoded_a_sd,image_decoded_b_mean, image_decoded_b_sd,  filename_i, filename_j
 
 
 def load_data(dataset_name):
@@ -161,13 +176,30 @@ def load_data(dataset_name):
 
     csv_name = cyclegan_datasets.PATH_TO_CSV[dataset_name]
 
-    image_i, image_j= _load_samples(
+    image_i, image_j,image_i_mean,image_i_sd, image_j_mean,image_j_sd , filename_i, filename_j= _load_samples(
         csv_name, cyclegan_datasets.DATASET_TO_IMAGETYPE[dataset_name])
+
+    do_shuffle = False
+    if do_shuffle is True:
+        images_i, images_j ,images_i_mean,images_i_sd, images_j_mean,images_j_sd , filenames_i, filenames_j= tf.train.shuffle_batch(
+            [image_i, image_j, image_i_mean,image_i_sd, image_j_mean,image_j_sd , filename_i, filename_j], 1, 500, 10)
+    else:
+        images_i, images_j, images_i_mean, images_i_sd, images_j_mean, images_j_sd, filenames_i, filenames_j= tf.train.batch(
+            [image_i, image_j,image_i_mean,image_i_sd, image_j_mean,image_j_sd , filename_i, filename_j], 1)
+
+
+
 
 
     inputs = {
-        'images_i': image_i,
-        'images_j': image_j
+        'images_i': images_i,
+        'images_j': images_j,
+        'images_i_mean': images_i_mean,
+        'images_j_mean': images_j_mean,
+        'images_i_sd': images_i_sd,
+        'images_j_sd': images_j_sd,
+        'images_i_name': filenames_i,
+        'images_j_name': filenames_j,
     }
 
     # Preprocessing:
@@ -188,17 +220,11 @@ def load_data(dataset_name):
     # inputs['image_i'] = tf.subtract(tf.div(inputs['image_i'], 127.5), 1)
     # inputs['image_j'] = tf.subtract(tf.div(inputs['image_j'], 127.5), 1)
 
-    # Batch
+    #n Batch
 
 
 
-    #
-    # if do_shuffle is True:
-    #     inputs['images_i'], inputs['images_j'] = tf.train.shuffle_batch(
-    #         [inputs['image_i'], inputs['image_j']], 16, 5000, 100)
-    # else:
-    #     inputs['images_i'], inputs['images_j'] = tf.train.batch(
-    #         [inputs['image_i'], inputs['image_j']], 16)
+
 
 
 
